@@ -1,0 +1,229 @@
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Koshur Boii</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1f1c2c, #928dab);
+            color: white;
+        }
+        
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            color: white;
+            min-width: 250px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .toast.success { background: #22c55e; }
+        .toast.error { background: #ef4444; }
+        .toast .close-btn { cursor: pointer; margin-left: 12px; }
+        
+        
+          @keyframes fade-in {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+        animation: fade-in 0.5s ease-out;
+    }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="absolute inset-0 bg-black flex items-center justify-center" id="remoteVideo"></div>
+
+    <div class="fixed bottom-4 right-4 bg-gray-800 bg-opacity-75 text-white p-4 rounded-lg shadow-lg w-64">
+        <h3 class="text-lg font-semibold">User Status</h3>
+        <ul class="list-disc list-inside text-gray-400" id="userStatus">
+            <li>No users online</li>
+        </ul>
+    </div>
+
+    <button class="fixed bottom-4 left-4 bg-red-500 text-white p-4 rounded-full shadow-lg hidden" id="muteAudioBtn">
+        <i class="fas fa-microphone-slash"></i>
+    </button>
+    <button class="fixed bottom-20 left-4 bg-blue-500 text-white p-4 rounded-full shadow-lg hidden" id="playVideoBtn">
+        <i class="fas fa-play"></i>
+    </button>
+
+    <script>
+        
+        function exitApp() {
+        window.close();
+        if (navigator.userAgent.includes("Android") || navigator.userAgent.includes("iPhone")) {
+            alert("Use the back button or close the app manually.");
+        }
+    }
+        console.toast = function (message, type = "success", duration = 4000) {
+            let toast = document.createElement("div");
+            toast.className = `toast ${type}`;
+            toast.innerText = message;
+
+            let closeBtn = document.createElement("span");
+            closeBtn.innerHTML = "&times;";
+            closeBtn.className = "close-btn";
+            closeBtn.onclick = () => toast.remove();
+
+            toast.appendChild(closeBtn);
+            document.body.appendChild(toast);
+
+            setTimeout(() => { toast.style.opacity = "1"; }, 10);
+            setTimeout(() => {
+                toast.style.opacity = "0";
+                setTimeout(() => toast.remove(), 500);
+            }, duration);
+        };
+
+        function getQueryParam(param) {
+            return new URLSearchParams(window.location.search).get(param);
+        }
+
+        function decryptData(encryptedData, key) {
+            try {
+                if (!encryptedData) return null;
+                const bytes = CryptoJS.AES.decrypt(decodeURIComponent(encryptedData), key);
+                return bytes.toString(CryptoJS.enc.Utf8);
+            } catch (error) {
+                console.toast("🚨 Decryption Error", "error");
+                return null;
+            }
+        }
+
+       
+        const x = "KoshurBoii*Abrar";
+        const encryptedAppId = getQueryParam("appId");
+        const encryptedChannel = getQueryParam("channel");
+
+        const APP_ID = encryptedAppId ? decryptData(encryptedAppId, x) : null;
+        const CHANNEL_NAME = encryptedChannel ? decryptData(encryptedChannel, x) : null;
+
+        if (!APP_ID || !CHANNEL_NAME) {
+            document.body.innerHTML = `
+                <div class="flex flex-col items-center justify-center min-h-screen bg-red-600 text-white px-6">
+    <div class="text-center animate-fade-in">
+        <h1 class="text-5xl font-extrabold mb-4">⚠️ Decryption Error</h1>
+        <p class="text-lg mb-6">Invalid or missing encrypted data. Please check your input.</p>
+        <div class="flex gap-2">
+            
+            <button onclick="exitApp()" class="bg-gray-900 text-white px-6 py-3 rounded-lg font-semibold shadow-lg hover:bg-gray-700 transition">
+                ❌ Exit
+            </button>
+            <button onclick="window.open('https://t.me/koshurboiiyt', '_blank')" class="bg-gray-900 text-white px-6 py-3 rounded-lg font-semibold shadow-lg hover:bg-gray-700 transition">
+    ⚙️ Join telegram 
+</button>
+            
+        </div>
+    </div>
+</div>        `;
+            
+            throw new Error("Decryption failed or invalid data.");
+        }
+
+        const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+
+        let remoteStream;
+        let remoteAudio;
+        let isReceivingStarted = false;
+
+        async function startReceiving() {
+            if (isReceivingStarted) return;
+            isReceivingStarted = true;
+
+            try {
+                await client.join(APP_ID, CHANNEL_NAME, null, null);
+                console.toast("✅ Receiver Connected & Waiting for Stream!", "success");
+
+                client.on("user-published", async (user, mediaType) => {
+                    await client.subscribe(user, mediaType);
+
+                    if (mediaType === "video") {
+                        remoteStream = user.videoTrack;
+                        remoteStream.play("remoteVideo");
+                        document.getElementById("playVideoBtn").disabled = false;
+                        document.getElementById("playVideoBtn").classList.remove("hidden");
+                    }
+
+                    if (mediaType === "audio") {
+                        remoteAudio = user.audioTrack;
+                        remoteAudio.play();
+                        document.getElementById("muteAudioBtn").disabled = false;
+                        document.getElementById("muteAudioBtn").classList.remove("hidden");
+                    }
+
+                    updateUserStatus(user.uid, true);
+                    console.toast(`🎥 User ${user.uid} streaming!`, "success");
+                });
+
+                client.on("user-unpublished", (user) => {
+                    updateUserStatus(user.uid, false);
+                    console.toast(`👤 User ${user.uid} left.`, "error");
+                });
+
+            } catch (error) {
+                document.body.innerHTML = `
+                    <div class="flex items-center justify-center min-h-screen bg-red-500 text-white">
+                        <div class="text-center">
+                            <h1 class="text-4xl font-bold mb-4">Connection Error</h1>
+                            <p class="text-lg">Error in receiving stream: ${error.message}</p>
+                        </div>
+                    </div>
+                `;
+                console.toast("❌ Error in receiving stream!", "error");
+            }
+        }
+
+        function updateUserStatus(uid, isOnline) {
+            const userStatusList = document.getElementById("userStatus");
+            let userItem = document.getElementById(`user-${uid}`);
+
+            if (isOnline) {
+                if (!userItem) {
+                    userItem = document.createElement("li");
+                    userItem.id = `user-${uid}`;
+                    userItem.innerText = `User ${uid} is online`;
+                    userStatusList.appendChild(userItem);
+                }
+            } else {
+                if (userItem) {
+                    userItem.remove();
+                }
+                if (userStatusList.children.length === 0) {
+                    userStatusList.innerHTML = "<li>No users online</li>";
+                }
+            }
+        }
+
+        document.getElementById("muteAudioBtn").addEventListener("click", () => {
+    if (remoteAudio) {
+        const isMuted = remoteAudio.isMuted;
+        remoteAudio.setMuted(!isMuted);
+        document.getElementById("muteAudioBtn").innerHTML = isMuted
+            ? '<i class="fas fa-microphone-slash"></i>'
+            : '<i class="fas fa-microphone"></i>';
+        console.toast(!isMuted ? "🔇 Muted" : "🔊 Unmuted", !isMuted ? "error" : "success");
+    }
+});
+
+        startReceiving();
+    </script>
+</body>
+</html>
