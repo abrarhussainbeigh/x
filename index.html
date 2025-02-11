@@ -18,28 +18,31 @@
  </head>
  <body class="bg-gray-900 text-white">
   <!-- Modal for App ID & Channel Name -->
-  <div class="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 z-50" id="app-modal">
-   <div class="bg-gray-700 p-6 rounded-lg shadow-lg">
-    <h2 class="text-2xl font-bold mb-4">
-     Enter Agora Details
-    </h2>
-    <div class="mb-4">
-     <label class="block text-sm font-medium" for="app-id">
-      Agora App ID
-     </label>
-     <input class="w-full p-2 mt-1 bg-gray-800 border border-gray-600 rounded" id="app-id" type="text"/>
-    </div>
-    <div class="mb-4">
-     <label class="block text-sm font-medium" for="channel-name">
-      Channel Name
-     </label>
-     <input class="w-full p-2 mt-1 bg-gray-800 border border-gray-600 rounded" id="channel-name" type="text"/>
-    </div>
-    <button class="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded" id="join-btn">
-     Join Channel
-    </button>
+  <div class="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 z-50 px-4 sm:px-0" id="app-modal">
+   <div class="bg-gray-700 p-6 rounded-lg shadow-lg w-full max-w-sm sm:max-w-md">
+      <h2 class="text-xl sm:text-2xl font-bold mb-4 text-center">Enter Agora Details</h2>
+      
+      <div class="mb-4">
+         <label class="block text-sm font-medium" for="app-id">Agora App ID</label>
+         <input class="w-full p-2 mt-1 bg-gray-800 border border-gray-600 rounded" id="app-id" type="text"/>
+      </div>
+
+      <div class="mb-4">
+         <label class="block text-sm font-medium" for="channel-name">Channel Name</label>
+         <input class="w-full p-2 mt-1 bg-gray-800 border border-gray-600 rounded" id="channel-name" type="text"/>
+      </div>
+
+      <button class="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded text-white" id="join-btn">
+         Join Channel
+      </button>
+
+      <!-- Developer Credit & Disclaimer -->
+      <p class="mt-4 text-xs text-gray-400 text-center leading-tight">
+         Developed by <span class="text-blue-400 font-semibold">Koshur Boii</span>.  
+         Use at your own risk. I am not responsible for any misuse.
+      </p>
    </div>
-  </div>
+</div>
   <!-- Main Video Call Interface -->
   <div class="flex flex-col h-screen">
    <!-- Header -->
