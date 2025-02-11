@@ -1,0 +1,272 @@
+<html lang="en">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>
+   Agora Video Call 
+  </title>
+  <script src="https://cdn.tailwindcss.com">
+  </script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
+  <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+  <style>
+   body {
+            font-family: 'Roboto', sans-serif;
+        }
+  </style>
+ </head>
+ <body class="bg-gray-900 text-white">
+  <!-- Modal for App ID & Channel Name -->
+  <div class="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 z-50" id="app-modal">
+   <div class="bg-gray-700 p-6 rounded-lg shadow-lg">
+    <h2 class="text-2xl font-bold mb-4">
+     Enter Agora Details
+    </h2>
+    <div class="mb-4">
+     <label class="block text-sm font-medium" for="app-id">
+      Agora App ID
+     </label>
+     <input class="w-full p-2 mt-1 bg-gray-800 border border-gray-600 rounded" id="app-id" type="text"/>
+    </div>
+    <div class="mb-4">
+     <label class="block text-sm font-medium" for="channel-name">
+      Channel Name
+     </label>
+     <input class="w-full p-2 mt-1 bg-gray-800 border border-gray-600 rounded" id="channel-name" type="text"/>
+    </div>
+    <button class="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded" id="join-btn">
+     Join Channel
+    </button>
+   </div>
+  </div>
+  <!-- Main Video Call Interface -->
+  <div class="flex flex-col h-screen">
+   <!-- Header -->
+   <header class="flex items-center justify-between p-4 bg-gray-800">
+    <h1 class="text-xl font-bold">
+     Agora Video Call
+    </h1>
+    <button class="text-gray-400 hover:text-white" id="settings-btn">
+     <i class="fas fa-cog">
+     </i>
+    </button>
+   </header>
+   <!-- Video Section -->
+   <main class="flex-1 flex flex-col md:flex-row">
+    <!-- Primary Video View -->
+    <div class="flex-1 flex items-center justify-center bg-gray-700" id="primary-video">
+     <div class="w-full h-full" id="primary-video-track">
+     </div>
+    </div>
+    <!-- Thumbnails -->
+    <div class="flex md:flex-col md:w-1/4 bg-gray-800 p-2 space-x-2 md:space-x-0 md:space-y-2 overflow-x-auto md:overflow-y-auto" id="thumbnails">
+    </div>
+   </main>
+   <!-- Controls -->
+   <footer class="flex items-center justify-center p-4 bg-gray-800">
+       <button class="mx-2 p-2 bg-gray-700 hover:bg-gray-600 rounded" id="self-btn">
+    <i class="fas fa-user"></i>
+</button>
+    <button class="mx-2 p-2 bg-gray-700 hover:bg-gray-600 rounded" id="mute-btn">
+     <i class="fas fa-microphone-slash">
+     </i>
+    </button>
+    <button class="mx-2 p-2 bg-gray-700 hover:bg-gray-600 rounded" id="camera-btn">
+     <i class="fas fa-video-slash">
+     </i>
+    </button>
+   </footer>
+  </div>
+  <!-- Toast Notification -->
+  <div class="fixed bottom-4 right-4 bg-gray-700 text-white p-4 rounded-lg shadow-lg hidden" id="toast">
+   <p id="toast-message">
+   </p>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/agora-rtc-sdk-ng@latest">
+  </script>
+ <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        const appModal = document.getElementById('app-modal');
+        const joinBtn = document.getElementById('join-btn');
+        const muteBtn = document.getElementById('mute-btn');
+        const cameraBtn = document.getElementById('camera-btn');
+        const thumbnails = document.getElementById('thumbnails');
+        const primaryVideoTrack = document.getElementById('primary-video-track');
+        const appIdInput = document.getElementById('app-id');
+        const channelNameInput = document.getElementById('channel-name');
+
+        let isMuted = false;
+        let isCameraOff = false;
+        let client;
+        let localTracks = {
+            videoTrack: null,
+            audioTrack: null
+        };
+        let remoteUsers = {};
+
+        // Load saved App ID & Channel Name
+        if (localStorage.getItem("appId")) {
+            appIdInput.value = localStorage.getItem("appId");
+        }
+        if (localStorage.getItem("channelName")) {
+            channelNameInput.value = localStorage.getItem("channelName");
+        }
+
+        // Request permissions before joining
+        async function checkPermissions() {
+            const permissions = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            return !!permissions;
+        }
+
+        // Initialize Agora Client
+        async function initAgoraClient(appId, channelName) {
+            client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+
+            client.on("user-published", handleUserPublished);
+            client.on("user-unpublished", handleUserUnpublished);
+
+            await client.join(appId, channelName, null);
+
+            localTracks.videoTrack = await AgoraRTC.createCameraVideoTrack();
+            localTracks.audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+
+            // Play local video immediately
+            localTracks.videoTrack.play("primary-video-track");
+            await client.publish(Object.values(localTracks));
+
+            console.log("Joined channel:", channelName);
+        }
+
+        // Handle new user joining
+        // Handle new user joining
+async function handleUserPublished(user, mediaType) {
+    await client.subscribe(user, mediaType);
+
+    let userBox = document.getElementById(user.uid);
+    
+    if (!userBox) {
+        userBox = document.createElement("div");
+        userBox.classList.add(
+            "thumbnail", "w-24", "h-24", "md:w-full", "md:h-32", "bg-gray-700", 
+            "flex", "flex-col", "items-center", "justify-center", "cursor-pointer", 
+            "relative", "p-2", "rounded"
+        );
+        userBox.id = user.uid;
+
+        // User Avatar
+        const avatarImg = document.createElement("img");
+        avatarImg.src = "https://icons.veryicon.com/png/o/miscellaneous/bitisland-world/person-18.png"; // Default avatar
+        avatarImg.classList.add("w-12", "h-12", "rounded-full", "mb-2");
+
+        // Status Badge
+        const statusText = document.createElement("span");
+        statusText.classList.add("text-xs", "bg-gray-600", "px-2", "py-1", "rounded-full", "absolute", "bottom-1");
+        statusText.innerText = "Camera Off";
+
+        // Append elements
+        userBox.appendChild(avatarImg);
+        userBox.appendChild(statusText);
+        thumbnails.appendChild(userBox);
+    }
+
+    if (mediaType === "video") {
+        const remoteVideoTrack = user.videoTrack;
+
+        // Update Thumbnail Status
+        const statusText = userBox.querySelector("span");
+        statusText.innerText = "Camera On";
+        statusText.classList.replace("bg-gray-600", "bg-green-600");
+
+        // Remove previous event listener before adding a new one
+        userBox.replaceWith(userBox.cloneNode(true));
+        userBox = document.getElementById(user.uid);
+
+        userBox.addEventListener("click", () => {
+            if (remoteVideoTrack) {
+                primaryVideoTrack.innerHTML = "";
+                remoteVideoTrack.play("primary-video-track");
+            }
+        });
+
+        // Auto-switch back if waiting
+        if (primaryVideoTrack.innerHTML.includes("Waiting for video...")) {
+            primaryVideoTrack.innerHTML = "";
+            remoteVideoTrack.play("primary-video-track");
+        }
+    }
+}
+
+// Handle user leaving or turning off camera
+function handleUserUnpublished(user, mediaType) {
+    const userBox = document.getElementById(user.uid);
+    if (userBox) {
+        const statusText = userBox.querySelector("span");
+        if (mediaType === "video") {
+            statusText.innerText = "Camera Off";
+            statusText.classList.replace("bg-green-600", "bg-gray-600");
+        }
+
+        // If the user being viewed turns off their camera, show a placeholder
+        if (primaryVideoTrack.innerHTML !== "" && primaryVideoTrack.contains(user.videoTrack?.getMediaStreamTrack())) {
+            primaryVideoTrack.innerHTML = "<p class='text-center text-gray-400'>Waiting for video...</p>";
+        }
+    }
+}
+
+
+        
+        
+        const selfBtn = document.getElementById('self-btn');
+
+selfBtn.addEventListener("click", () => {
+    if (localTracks.videoTrack) {
+        primaryVideoTrack.innerHTML = ""; // Clear the current video
+        localTracks.videoTrack.play("primary-video-track"); // Play the local user's video
+    }
+});
+
+        
+
+        // Handle join button click
+        joinBtn.addEventListener("click", async () => {
+            const appId = appIdInput.value;
+            const channelName = channelNameInput.value;
+
+            if (appId && channelName) {
+                // Save to localStorage
+                localStorage.setItem("appId", appId);
+                localStorage.setItem("channelName", channelName);
+
+                appModal.classList.add("hidden");
+
+                // Check permissions before joining
+                const permissionsGranted = await checkPermissions();
+                if (!permissionsGranted) {
+                    alert("Camera and Microphone permissions are required.");
+                    return;
+                }
+
+                await initAgoraClient(appId, channelName);
+            } else {
+                alert("Please enter both App ID and Channel Name.");
+            }
+        });
+
+        // Handle mute button
+        muteBtn.addEventListener("click", () => {
+            isMuted = !isMuted;
+            localTracks.audioTrack.setEnabled(!isMuted);
+            muteBtn.innerHTML = isMuted ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
+        });
+
+        // Handle camera button
+        cameraBtn.addEventListener("click", () => {
+            isCameraOff = !isCameraOff;
+            localTracks.videoTrack.setEnabled(!isCameraOff);
+            cameraBtn.innerHTML = isCameraOff ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
+        });
+    });
+</script>
+ </body>
+</html>
