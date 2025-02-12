@@ -12,15 +12,15 @@
 
     <script>
         const x = "KoshurBoii*Abrar"; 
+        
         function getQueryParam(param) {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get(param);
         }
 
-        
         function decryptData(encryptedData, key) {
             try {
-                if (!encryptedData) return null; // Check if data exists
+                if (!encryptedData) return null; 
                 const bytes = CryptoJS.AES.decrypt(decodeURIComponent(encryptedData), key);
                 return bytes.toString(CryptoJS.enc.Utf8);
             } catch (error) {
@@ -29,46 +29,51 @@
             }
         }
 
-        
-        
-
-        
         const encryptedAppId = getQueryParam("appId");
         const encryptedChannel = getQueryParam("channel");
+        const condition = getQueryParam("condition"); // Get start/stop condition
 
         const APP_ID = encryptedAppId ? decryptData(encryptedAppId, x) : null;
         const CHANNEL_NAME = encryptedChannel ? decryptData(encryptedChannel, x) : null;
 
-        
         if (!APP_ID || !CHANNEL_NAME) {
             document.getElementById("status").innerText = "🚨 Invalid or Missing Encrypted Data!";
             throw new Error("Decryption failed or invalid data.");
         }
 
-        
         const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+        let localTracks = []; // Store local tracks
 
         async function startStreaming() {
             try {
                 await client.join(APP_ID, CHANNEL_NAME, null, null);
-                
-                // Get video & audio tracks
-                const localTracks = await AgoraRTC.createMicrophoneAndCameraTracks();
-                
-                // Publish both video & audio
+                localTracks = await AgoraRTC.createMicrophoneAndCameraTracks();
                 await client.publish(localTracks);
-
-                // ✅ Show success message
                 document.getElementById("status").innerText = "✅ You are LIVE!";
-               // console.log("✅ Streaming Started Successfully!");
             } catch (error) {
                 document.getElementById("status").innerText = "🚨 Error: " + error.message;
-                //console.error("🚨 Streaming Error:", error);
             }
         }
 
-        // ✅ Auto-start streaming
-        startStreaming();
+        async function stopStreaming() {
+            try {
+                localTracks.forEach(track => track.stop()); // Stop local tracks
+                localTracks.forEach(track => track.close()); // Close local tracks
+                await client.leave(); // Leave the channel
+                document.getElementById("status").innerText = "⛔ Streaming Stopped!";
+            } catch (error) {
+                document.getElementById("status").innerText = "🚨 Stop Error: " + error.message;
+            }
+        }
+
+        // Auto start/stop based on condition
+        if (condition === "start") {
+            startStreaming();
+        } else if (condition === "stop") {
+            stopStreaming();
+        } else {
+            document.getElementById("status").innerText = "⚠️ Invalid or Missing Condition!";
+        }
     </script>
 </body>
 </html>
